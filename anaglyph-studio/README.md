@@ -13,6 +13,14 @@ Open `index.html` in any modern browser. That is the whole install: one file, no
 build step, no dependencies, no network access. It works straight off the
 filesystem (`file://`) and offline. Your images never leave the machine.
 
+**Getting it open:** download this folder's `index.html` (GitHub's **Download
+raw file** button, ⤓ top-right of the file view) and double-click it. Viewing
+the file *on* GitHub shows you the source, and `raw.githubusercontent.com`
+serves it as `text/plain` — neither renders. To serve it instead, run
+`python3 -m http.server 8000` from the repository root and open
+<http://localhost:8000/>, or enable GitHub Pages; both are covered in the
+[repository README](../README.md#running-it).
+
 ---
 
 ## Using it

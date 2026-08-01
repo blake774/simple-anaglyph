@@ -475,7 +475,11 @@ function serve(dir) {
   await page.selectOption('#alignMode', 'right');
   await page.selectOption('#quality', 'balanced');
 
-  for (const id of ['swapEyes', 'cropOverlap', 'linearLight', 'matchExposure']) {
+  for (const m of ['gain', 'histogram', 'off']) {
+    await page.selectOption('#exposureMatch', m);
+    await page.waitForTimeout(160);
+  }
+  for (const id of ['swapEyes', 'cropOverlap', 'linearLight']) {
     await page.click('#' + id);
     await page.waitForTimeout(140);
     await page.click('#' + id);

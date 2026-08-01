@@ -19,15 +19,23 @@ filesystem (`file://`) and offline. Your images never leave the machine.
 
 1. **Load two images** — click, drop or paste into the left and right eye slots.
    Drop two files anywhere on the window and the first becomes the left eye.
+   No photos handy? **Load the demo pair** — a stereo landscape generated
+   in-browser, with a realistic vertical + roll + scale error baked into the
+   right eye so there is something real to correct.
 2. **Press Auto-align.** It measures the vertical shift, roll and scale change
-   between the two frames and fills in the sliders.
+   between the two frames and fills in the sliders. **Hold `\`** at any point
+   to flash back to the uncorrected original.
 3. **Check it with the Wiggle view.** Flipping between the two aligned frames is
    ruthless: if anything jumps vertically or rocks, the alignment is off.
-4. **Set the Depth slider** to choose what sits on the screen plane.
-5. **Export** a PNG/JPEG/WebP, or an animated wiggle GIF.
+4. **Place the screen plane.** Drag the Depth slider, **Alt+click** any object
+   to put it exactly on the screen, or run **Analyse depth range** and let the
+   app report how much parallax the scene actually spans.
+5. **Export** a PNG/JPEG/WebP, copy it straight to the clipboard, or render an
+   animated wiggle GIF.
 
 Only step 1 is mandatory. Every automatic result is a starting point you can
-override by hand.
+override by hand, and every change is undoable (Ctrl+Z). Settings persist in
+the browser between visits and can be saved/loaded as JSON.
 
 ---
 
@@ -79,17 +87,33 @@ the screen:
 
 | Setting | Effect |
 | --- | --- |
-| **Negative** | Everything recedes behind the screen. Safest, most comfortable. |
+| **Negative** | Crossed disparity — the scene pushes out of the screen towards the viewer. |
 | **Zero** | Whatever the camera converged on sits exactly on the screen plane. |
-| **Positive** | The scene pushes forward, out of the screen towards the viewer. |
+| **Positive** | Uncrossed disparity — the scene recedes behind the screen. Safest, most comfortable. |
 
 The reading under the slider converts to pixels for the current image. A useful
-guideline: keep the total on-screen separation of your *farthest* object under
-about 3% of the image width, or viewers have to diverge their eyes to fuse it.
+guideline: keep the on-screen separation of your *farthest* object under about
+2.5% of the image width, or viewers have to diverge their eyes to fuse it.
+
+Beyond the slider there are three measured ways to place the plane:
+
+- **Alt+click** (or the *Set screen by click* button) measures the parallax of
+  the clicked object and zeroes it, putting that object exactly on the screen.
+- **Analyse depth range** samples local parallax at hundreds of well-textured
+  points and reports the nearest, median and farthest disparities — in pixels
+  and as a percentage of width — with a comfort verdict.
+- **Screen at nearest / Screen at median** then place the whole scene using
+  those measurements: *nearest* parks everything at or behind the screen (the
+  safe choice), *median* straddles the screen plane for maximum pop.
+
+The measurements use zero-mean patch correlation with a left↔right consistency
+check — each match is verified backwards, which rejects the classic stereo
+failure modes (periodic texture aliasing and half-occluded depth edges).
 
 Objects that pop out **and** touch the frame edge cause a "window violation" —
 the frame occludes something that is supposedly in front of it, and the brain
-refuses the illusion. Pull depth negative, or crop in.
+refuses the illusion. Push depth positive to bring the scene back behind the
+screen, or crop in.
 
 ---
 
@@ -107,8 +131,9 @@ correction evenly between both — the split halves the resampling of either vie
 so neither eye ends up visibly softer. The relative geometry is identical either
 way; the translation is pre-rotated so the split is exact rather than approximate.
 
-**3 · Depth** — the depth slider, zero-parallax reset, and a button to restore
-the value auto-align measured.
+**3 · Depth** — the depth slider, zero-parallax reset, a button to restore the
+value auto-align measured, click-to-set convergence, and the depth-range
+analyser with its two placement buttons.
 
 **4 · Anaglyph rendering** — six encoding methods:
 
@@ -125,8 +150,9 @@ Plus *blend in linear light* (gamma-correct compositing — the single most comm
 reason home-made anaglyphs come out muddy), ghost/cross-talk reduction, red
 desaturation to tame retinal rivalry, and independent red/cyan channel gains.
 
-**5 · Image adjustments** — automatic right-eye exposure matching, brightness,
-contrast, saturation, gamma.
+**5 · Image adjustments** — right-eye exposure matching in two strengths (mean
+gain, or full per-channel histogram matching that also fixes contrast and
+colour-cast differences), plus brightness, contrast, saturation, gamma.
 
 **6 · Framing & output** — *crop to the region both eyes cover* (finds the
 largest upright rectangle inside the overlap, which removes the wedge-shaped
@@ -139,11 +165,18 @@ cross) with adjustable density and opacity, preview resolution, parallel or
 cross-eyed free-view order, wiggle speed, difference gain.
 
 **8 · Export** — anaglyph, either eye, or the side-by-side pair, as PNG, JPEG or
-WebP at any output scale; plus the wiggle GIF with frame delay, size, palette
-size, dithering and loop control.
+WebP at any output scale — downloaded or copied straight to the clipboard;
+plus the wiggle GIF with frame delay, size, palette size, dithering and loop
+control.
+
+**9 · Settings & history** — undo/redo over every parameter (Ctrl+Z /
+Ctrl+Shift+Z, 100 steps), automatic persistence to the browser's local storage,
+and save/load of the complete configuration as a JSON file. Reset restores
+factory defaults and clears the stored state.
 
 Every slider has a number box for exact entry, and **double-clicking a slider
-resets that one control** to its default.
+resets that one control** to its default. The stage bar adds a hold-to-compare
+button (the uncorrected original), and a fullscreen toggle.
 
 ### Keyboard
 
@@ -155,6 +188,9 @@ resets that one control** to its default.
 | `A` | Auto-align |
 | `W` | Toggle wiggle |
 | `D` | Toggle difference |
+| `\` (hold) | Show the uncorrected original |
+| `Alt+click` | Put the clicked point on the screen plane |
+| `Ctrl+Z` / `Ctrl+Shift+Z` | Undo / redo |
 | `F` / `0` | Fit to window |
 | `1` | Zoom 100% |
 
@@ -190,6 +226,7 @@ Chromium:
 ```sh
 node test/test.js      # 62 checks — accuracy, encoding, export, UI
 node test/robust.js    # 33 checks — edge cases
+node test/features.js  # 36 checks — demo scene, depth tools, undo, persistence
 ```
 
 `test.js` synthesises a stereo pair by applying a transform it chose itself, lets
@@ -203,14 +240,22 @@ the exported GIF.
 an 8-megapixel pair, frame borders, all three still formats, and the extremes of
 the GIF palette settings.
 
-Both suites pass in full. Measured results:
+`features.js` loads the demo pair (whose misalignment is a known constant),
+verifies auto-align recovers it, checks the depth analysis against the scene's
+built-in layer parallax, drives click-to-set-convergence through the real
+canvas, and exercises undo/redo, the settings JSON round-trip, persistence
+across a reload, A/B compare, clipboard copy and fullscreen.
+
+All three suites — 131 checks — pass in full. Measured results:
 
 | | |
 | --- | --- |
 | Alignment accuracy, 800×600 | 0.035 px worst-case displacement, 99.4% correlation |
 | Alignment accuracy, 3200×2400 | vertical within 0.7 px, rotation within 0.01° |
+| Demo scene (layered parallax) | vertical within 0.06 px, rotation within 0.05° |
+| "Screen at nearest" placement | nearest point lands within 0.05 px of zero |
 | Auto-align time | ~1.4 s at 800×600, ~2.5 s at 8 MP |
-| Preview render | ~30–70 ms |
+| Preview render | ~30–70 ms (eye rasters cached between rendering-only tweaks) |
 
 ---
 

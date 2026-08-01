@@ -55,6 +55,7 @@ h1,h2,h3,p{margin:0}
 .btn.ghost{background:transparent}
 .btn.sm{padding:4px 9px;font-size:12px}
 .btn.danger{border-color:#5d2a33;color:#ffb3ba}
+.btn.held{background:#2b3a55;border-color:#3c4f70;color:#fff}
 
 /* ---------- layout ---------- */
 main{display:flex;flex:1 1 auto;min-height:0}
@@ -150,6 +151,22 @@ input[type=color]{width:34px;height:26px;padding:0;border:1px solid var(--line2)
 .status-line.ok{color:var(--ok)}
 .status-line.warn{color:var(--warn)}
 .status-line.err{color:var(--red)}
+.report{font:11.5px var(--mono);background:#0e1219;border:1px solid var(--line);border-radius:7px;
+  padding:8px 10px;margin:8px 0;line-height:1.7;display:none;white-space:pre-line;color:var(--txt2)}
+.report.on{display:block}
+.report b{color:var(--txt);font-weight:600}
+.report .ok{color:var(--ok)} .report .warn{color:var(--warn)} .report .err{color:var(--red)}
+
+/* ---------- toasts ---------- */
+#toasts{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:8px;z-index:8;
+  pointer-events:none;max-width:min(340px,85%)}
+.toast{background:rgba(15,19,27,.94);border:1px solid var(--line2);border-left:3px solid var(--accent);
+  border-radius:8px;padding:8px 12px;font-size:12.5px;color:var(--txt);box-shadow:0 8px 22px rgba(0,0,0,.45);
+  opacity:0;transform:translateY(-6px);transition:opacity .18s,transform .18s;line-height:1.45}
+.toast.on{opacity:1;transform:none}
+.toast.ok{border-left-color:var(--ok)}
+.toast.warn{border-left-color:var(--warn)}
+.toast.err{border-left-color:var(--red)}
 
 /* ---------- stage ---------- */
 #stageBar{
@@ -254,6 +271,7 @@ kbd{font:10.5px var(--mono);background:#0e1219;border:1px solid var(--line2);bor
           <div class="btnrow">
             <button class="btn sm" id="btnSwapSrc">Swap L / R</button>
             <button class="btn sm ghost" id="btnClear">Clear both</button>
+            <button class="btn sm" id="btnDemo" title="Generates a stereo landscape in-browser, with realistic vertical, rotational and scale error baked into the right eye.">Demo pair</button>
           </div>
           <label class="chk" title="Use this if the 3D looks inside-out (near objects appear far away).">
             <input type="checkbox" id="swapEyes"><span>Swap eyes when rendering (fix pseudo-stereo)</span>
@@ -323,13 +341,23 @@ kbd{font:10.5px var(--mono);background:#0e1219;border:1px solid var(--line2);bor
       <details class="sec" open>
         <summary>3 · Depth</summary>
         <div class="body">
-          <p class="hint">Horizontal separation sets where the screen plane sits in the scene. Slide left and the whole scene moves behind the screen; slide right and it pushes out towards you.</p>
+          <p class="hint">Horizontal separation sets where the screen plane sits in the scene. Slide right and the scene recedes behind the screen; slide left and it pushes out towards you.</p>
           <div class="controls" id="ctlsDepth"></div>
           <div class="btnrow">
             <button class="btn sm" id="btnDepthZero">Zero parallax</button>
             <button class="btn sm" id="btnDepthAuto" disabled>Use measured</button>
+            <button class="btn sm" id="btnPick" disabled title="Then click a point in the preview — its measured parallax is zeroed so it lands exactly on the screen plane. Alt+click does this any time.">Set screen by click</button>
           </div>
-          <p class="hint" style="margin-top:6px">Comfort rule of thumb: keep the total on-screen separation of the farthest object under ~3% of the image width.</p>
+
+          <div class="btnrow" style="margin-top:12px">
+            <button class="btn sm primary" id="btnDepthScan" disabled title="Samples local parallax across a grid of well-textured points and reports the scene's depth range.">Analyse depth range</button>
+          </div>
+          <div class="report" id="depthReport"></div>
+          <div class="btnrow" id="depthPlaceRow" style="display:none">
+            <button class="btn sm" id="btnDepthNear" title="Everything at or behind the screen — the safest, most comfortable placement.">Screen at nearest</button>
+            <button class="btn sm" id="btnDepthMedian" title="The scene straddles the screen plane; mid-ground at zero parallax.">Screen at median</button>
+          </div>
+          <p class="hint" style="margin-top:6px">Comfort rule of thumb: keep the on-screen separation of the farthest object under ~2.5% of image width (viewers cannot diverge their eyes), and pop-out under ~1.5% unless it stays clear of the frame edges.</p>
         </div>
       </details>
 
@@ -356,7 +384,15 @@ kbd{font:10.5px var(--mono);background:#0e1219;border:1px solid var(--line2);bor
       <details class="sec">
         <summary>5 · Image adjustments</summary>
         <div class="body">
-          <label class="chk"><input type="checkbox" id="matchExposure"><span>Match right-eye exposure to left</span></label>
+          <div class="field">
+            <label>Match right-eye exposure to left</label>
+            <select id="exposureMatch">
+              <option value="off" selected>Off</option>
+              <option value="gain">Gain — match mean brightness</option>
+              <option value="histogram">Histogram — match full tone curve per channel</option>
+            </select>
+          </div>
+          <p class="hint" style="margin:-2px 0 8px">Two exposures rarely agree — clouds move, auto-exposure re-meters. Gain fixes overall brightness; histogram also fixes contrast and colour-cast differences.</p>
           <div class="controls" id="ctlsAdj"></div>
         </div>
       </details>
@@ -433,7 +469,10 @@ kbd{font:10.5px var(--mono);background:#0e1219;border:1px solid var(--line2);bor
             </select>
           </div>
           <div class="controls" id="ctlsExport"></div>
-          <div class="btnrow"><button class="btn primary" id="btnExport2" disabled>Export image</button></div>
+          <div class="btnrow">
+            <button class="btn primary" id="btnExport2" disabled>Export image</button>
+            <button class="btn" id="btnCopy" disabled title="Renders at the export size and puts a PNG on the clipboard.">Copy PNG</button>
+          </div>
 
           <hr style="border:0;border-top:1px solid var(--line);margin:14px 0">
           <h3 style="font-size:12px;letter-spacing:.6px;text-transform:uppercase;color:var(--txt2);margin-bottom:4px">Wiggle GIF</h3>
@@ -448,7 +487,23 @@ kbd{font:10.5px var(--mono);background:#0e1219;border:1px solid var(--line2);bor
       </details>
 
       <details class="sec">
-        <summary>9 · Keyboard shortcuts</summary>
+        <summary>9 · Settings &amp; history</summary>
+        <div class="body">
+          <p class="hint">Everything in this panel auto-saves to this browser and comes back on the next visit. Reset restores factory defaults and clears the saved state.</p>
+          <div class="btnrow">
+            <button class="btn sm" id="btnUndo" disabled title="Ctrl+Z">↶ Undo</button>
+            <button class="btn sm" id="btnRedo" disabled title="Ctrl+Shift+Z / Ctrl+Y">↷ Redo</button>
+          </div>
+          <div class="btnrow">
+            <button class="btn sm" id="btnSaveSet" title="Downloads every setting as a JSON file.">Save settings…</button>
+            <button class="btn sm" id="btnLoadSet" title="Restores settings from a previously saved JSON file.">Load settings…</button>
+            <input type="file" id="fileSet" accept="application/json,.json" style="display:none">
+          </div>
+        </div>
+      </details>
+
+      <details class="sec">
+        <summary>10 · Keyboard shortcuts</summary>
         <div class="body">
           <div class="kbdlist">
             <kbd>↑</kbd><span>Right eye up 1 px <span class="tag">+Shift = 0.1 px</span></span>
@@ -460,9 +515,13 @@ kbd{font:10.5px var(--mono);background:#0e1219;border:1px solid var(--line2);bor
             <kbd>A</kbd><span>Auto-align</span>
             <kbd>W</kbd><span>Toggle wiggle preview</span>
             <kbd>D</kbd><span>Toggle difference view</span>
+            <kbd>\</kbd><span>Hold: original <span class="tag">correction off</span></span>
+            <kbd>Alt+click</kbd><span>Set screen plane at that point</span>
+            <kbd>Ctrl+Z</kbd><span>Undo <span class="tag">Ctrl+Shift+Z redo</span></span>
             <kbd>F</kbd><span>Fit to window</span>
             <kbd>1</kbd><span>Zoom 100 %</span>
             <kbd>0</kbd><span>Reset zoom &amp; pan</span>
+            <kbd>Esc</kbd><span>Cancel click-to-set mode</span>
           </div>
         </div>
       </details>
@@ -472,13 +531,14 @@ kbd{font:10.5px var(--mono);background:#0e1219;border:1px solid var(--line2);bor
     <section id="stage">
       <div id="stageBar">
         <div class="chips" id="viewChips">
-          <button class="chip on" data-view="anaglyph">Anaglyph</button>
-          <button class="chip" data-view="left">Left</button>
-          <button class="chip" data-view="right">Right</button>
-          <button class="chip" data-view="diff">Difference</button>
-          <button class="chip" data-view="wiggle">Wiggle</button>
-          <button class="chip" data-view="sbs">Side-by-side</button>
+          <button class="chip on" data-view="anaglyph" title="The composited red/cyan result">Anaglyph</button>
+          <button class="chip" data-view="left" title="Left eye after alignment">Left</button>
+          <button class="chip" data-view="right" title="Right eye after alignment">Right</button>
+          <button class="chip" data-view="diff" title="Luminance difference — residual misalignment shows as bright edges (D)">Difference</button>
+          <button class="chip" data-view="wiggle" title="Flips between the eyes — misalignment makes it jump (W)">Wiggle</button>
+          <button class="chip" data-view="sbs" title="Both eyes side by side for free-viewing">Side-by-side</button>
         </div>
+        <button class="btn sm" id="btnAB" disabled title="Hold to preview without the alignment correction (hold \)">Hold: original</button>
         <div class="spacer"></div>
         <div class="zoomctl">
           <button class="btn sm" id="btnZoomOut" title="Zoom out">−</button>
@@ -486,6 +546,7 @@ kbd{font:10.5px var(--mono);background:#0e1219;border:1px solid var(--line2);bor
           <button class="btn sm" id="btnZoomIn" title="Zoom in">+</button>
           <button class="btn sm" id="btnFit" title="Fit to window (F)">Fit</button>
           <button class="btn sm" id="btnOneToOne" title="Zoom to 100% (1)">1:1</button>
+          <button class="btn sm" id="btnFull" title="Toggle fullscreen preview">⛶</button>
         </div>
       </div>
       <div id="canvasWrap">
@@ -494,7 +555,9 @@ kbd{font:10.5px var(--mono);background:#0e1219;border:1px solid var(--line2);bor
           <div class="glasses"></div>
           <h2>Load a left and a right eye image</h2>
           <p>Drop two photos anywhere on this window, or use the panel on the left. Then hit <b>Auto-align</b> — it measures the vertical shift, rotation and scale change between the two shots and cancels them out before building the anaglyph.</p>
+          <button class="btn primary" id="btnDemoEmpty" style="pointer-events:auto">No photos handy? Load the demo scene</button>
         </div>
+        <div id="toasts" aria-live="polite"></div>
         <div id="dropAll">Drop images here — first goes to the left eye</div>
       </div>
       <div id="statusbar">
@@ -577,7 +640,7 @@ const SPEC = [
     tip: 'Approximate correction for the camera having pitched between shots.' },
 
   { host: 'ctlsDepth', id: 'depth', label: 'Depth (parallax)', min: -12, max: 12, step: 0.002, unit: '%',
-    sub: v => pxNote(v, 'W') + (v > 0.0005 ? ' · scene pushed forward' : v < -0.0005 ? ' · scene pushed back' : ' · at the screen'),
+    sub: v => pxNote(v, 'W') + (v > 0.0005 ? ' · scene recedes behind screen' : v < -0.0005 ? ' · scene pops out toward viewer' : ' · at the screen'),
     tip: 'Horizontal separation between the eyes. Sets which distance in the scene lands exactly on the screen plane.' },
 
   { host: 'ctlsAna', id: 'ghost', label: 'Ghost reduction', min: 0, max: 100, step: 1, unit: '%',
@@ -709,6 +772,25 @@ function setProg(id, frac) {
 }
 const nextFrame = () => new Promise(r => requestAnimationFrame(() => r()));
 
+/** True while the user holds the A/B key/button to preview without correction. */
+let abHold = false;
+
+/* Transient notifications, stacked top-right of the preview. */
+function showToast(msg, cls, ms) {
+  const host = $('toasts');
+  if (!host) return;
+  while (host.children.length >= 4) host.firstElementChild.remove();
+  const el = document.createElement('div');
+  el.className = 'toast' + (cls ? ' ' + cls : '');
+  el.textContent = msg;
+  host.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('on'));
+  setTimeout(() => {
+    el.classList.remove('on');
+    setTimeout(() => el.remove(), 240);
+  }, ms || 3800);
+}
+
 /** Hands the main thread back only if we have been hogging it, so long
  *  searches stay responsive without paying a frame for every candidate. */
 let _lastYield = 0;
@@ -826,10 +908,15 @@ function onImagesChanged() {
   else { base.w = base.h = 0; }
   pyramids.L = pyramids.R = null;
   autoResult = null;
+  lastDepthScan = null;
+  renderDepthReport();
+  $('depthPlaceRow').style.display = 'none';
   $('btnDepthAuto').disabled = true;
 
   const ready = bothLoaded();
-  for (const id of ['btnAuto', 'btnAutoTop', 'btnExport', 'btnExport2', 'btnGif', 'btnGif2']) $(id).disabled = !ready;
+  for (const id of ['btnAuto', 'btnAutoTop', 'btnExport', 'btnExport2', 'btnGif', 'btnGif2',
+    'btnDepthScan', 'btnPick', 'btnCopy', 'btnAB']) $(id).disabled = !ready;
+  if (!ready && pickMode) setPickMode(false);
   $('empty').style.display = ready ? 'none' : 'flex';
 
   $('stSize').textContent = ready
@@ -947,13 +1034,16 @@ function fitMatrix(src) {
  *             resampled more than the other. The translation is pre-rotated
  *             so the *relative* geometry is identical to `right` mode. */
 function eyeParams() {
+  // While the A/B key is held the alignment correction is suspended (depth is
+  // kept, so the comparison shows exactly what the correction contributes).
+  const ab = abHold;
   const full = {
     tx: (S.depth / 100) * base.w,
-    ty: (S.alignTy / 100) * base.h,
-    rot: S.alignRot,
-    scale: S.alignScale / 100,
-    shx: S.alignSkewX / 100,
-    shy: S.alignSkewY / 100,
+    ty: ab ? 0 : (S.alignTy / 100) * base.h,
+    rot: ab ? 0 : S.alignRot,
+    scale: ab ? 1 : S.alignScale / 100,
+    shx: ab ? 0 : S.alignSkewX / 100,
+    shy: ab ? 0 : S.alignSkewY / 100,
   };
   if ($('alignMode').value !== 'split') return { L: IDENT_P, R: full, full };
   const hRot = full.rot / 2, hScale = Math.sqrt(full.scale);
@@ -1001,7 +1091,7 @@ function cropRect() {
   const inset = (S.cropInset / 100) * Math.min(base.w, base.h);
   const useCrop = $('cropOverlap').checked && bothLoaded();
   const key = [loadSeq, base.w, base.h, S.alignTy, S.alignRot, S.alignScale, S.alignSkewX, S.alignSkewY,
-    S.depth, S.cropInset, useCrop, $('alignMode').value].join('|');
+    S.depth, S.cropInset, useCrop, $('alignMode').value, abHold].join('|');
   if (cropCache.key === key) return cropCache.rect;
 
   let rect = { x: 0, y: 0, w: base.w, h: base.h };
@@ -1147,6 +1237,30 @@ function meanLuma(data) {
   return n ? sum / n : 0;
 }
 
+/** Per-channel histogram-matching LUTs that reshape `src` pixels so each
+ *  channel's tone distribution matches `ref`'s. Classic CDF matching:
+ *  lut[v] = the ref value at the same cumulative rank as v in src. */
+function histogramLuts(refData, srcData) {
+  const luts = [new Uint8Array(256), new Uint8Array(256), new Uint8Array(256)];
+  for (let ch = 0; ch < 3; ch++) {
+    const hr = new Float64Array(256), hs = new Float64Array(256);
+    let nr = 0, ns = 0;
+    for (let i = ch; i < refData.length; i += 4 * 7) { hr[refData[i]]++; nr++; }
+    for (let i = ch; i < srcData.length; i += 4 * 7) { hs[srcData[i]]++; ns++; }
+    if (!nr || !ns) { for (let v = 0; v < 256; v++) luts[ch][v] = v; continue; }
+    let cr = 0;
+    const cdfR = new Float64Array(256);
+    for (let v = 0; v < 256; v++) { cr += hr[v] / nr; cdfR[v] = cr; }
+    let cs = 0, j = 0;
+    for (let v = 0; v < 256; v++) {
+      cs += hs[v] / ns;
+      while (j < 255 && cdfR[j] < cs) j++;
+      luts[ch][v] = j;
+    }
+  }
+  return luts;
+}
+
 function buildPostLut() {
   const lut = new Uint8Array(256);
   const cf = S.contrast >= 0 ? 1 + S.contrast / 50 : 1 + S.contrast / 100;
@@ -1178,10 +1292,13 @@ function combineAnaglyph(aData, bData, outData) {
   const r10 = R[1][0], r11 = R[1][1], r12 = R[1][2];
   const r20 = R[2][0], r21 = R[2][1], r22 = R[2][2];
 
-  let expGain = 1;
-  if ($('matchExposure').checked) {
+  const expMode = $('exposureMatch').value;
+  let expGain = 1, luts = null;
+  if (expMode === 'gain') {
     const ma = meanLuma(aData), mb = meanLuma(bData);
     if (mb > 1) expGain = clamp(ma / mb, 0.4, 2.5);
+  } else if (expMode === 'histogram') {
+    luts = histogramLuts(aData, bData);
   }
 
   const post = buildPostLut();
@@ -1190,7 +1307,12 @@ function combineAnaglyph(aData, bData, outData) {
 
   for (let i = 0; i < n; i += 4) {
     let Lr = toW[aData[i]], Lg = toW[aData[i + 1]], Lb = toW[aData[i + 2]];
-    let Rr = toW[bData[i]], Rg = toW[bData[i + 1]], Rb = toW[bData[i + 2]];
+    let Rr, Rg, Rb;
+    if (luts) {
+      Rr = toW[luts[0][bData[i]]]; Rg = toW[luts[1][bData[i + 1]]]; Rb = toW[luts[2][bData[i + 2]]];
+    } else {
+      Rr = toW[bData[i]]; Rg = toW[bData[i + 1]]; Rb = toW[bData[i + 2]];
+    }
 
     if (expGain !== 1) { Rr *= expGain; Rg *= expGain; Rb *= expGain; }
 
@@ -1269,11 +1391,12 @@ function renderContent(bufs, scale, view, opts) {
   const entries = eyeEntries();
 
   const key = [loadSeq, w, h, S.alignTy, S.alignRot, S.alignScale, S.alignSkewX, S.alignSkewY, S.depth,
-    $('alignMode').value, $('swapEyes').checked, bg, crop.x, crop.y].join('|');
+    $('alignMode').value, $('swapEyes').checked, bg, crop.x, crop.y, abHold].join('|');
   if (opts.force || bufs.key !== key) {
     drawEye(bufs.A, entries[0], crop, scale, w, h, bg);
     drawEye(bufs.B, entries[1], crop, scale, w, h, bg);
     bufs.key = key;
+    bufs.px = null;  // cached pixel reads are tied to this key
   }
 
   const out = bufs.C;
@@ -1290,12 +1413,15 @@ function renderContent(bufs, scale, view, opts) {
     out.x.drawImage(cross ? bufs.B.c : bufs.A.c, 0, 0);
     out.x.drawImage(cross ? bufs.A.c : bufs.B.c, w, 0);
   } else {
-    const da = bufs.A.x.getImageData(0, 0, w, h);
-    const db = bufs.B.x.getImageData(0, 0, w, h);
+    // Pixel reads dominate the cost of tweaking a rendering slider, and the
+    // eye rasters have not changed — cache them against the geometry key.
+    if (!bufs.px) {
+      bufs.px = { a: bufs.A.x.getImageData(0, 0, w, h), b: bufs.B.x.getImageData(0, 0, w, h) };
+    }
     out.c.width = w; out.c.height = h;
     const dOut = out.x.createImageData(w, h);
-    if (view === 'diff') combineDifference(da.data, db.data, dOut.data);
-    else combineAnaglyph(da.data, db.data, dOut.data);
+    if (view === 'diff') combineDifference(bufs.px.a.data, bufs.px.b.data, dOut.data);
+    else combineAnaglyph(bufs.px.a.data, bufs.px.b.data, dOut.data);
     out.x.putImageData(dOut, 0, 0);
   }
   return { canvas: out.c, w: out.c.width, h: out.c.height };
@@ -1320,7 +1446,7 @@ function withFrame(srcCanvas, buf) {
 const vw = { zoom: 1, ox: 0, oy: 0, fit: true };
 let previewScale = 1, lastComposed = null, lastRenderMs = 0;
 
-const QUALITY_CAP = { fast: 820, balanced: 1320, full: 2200 };
+const QUALITY_CAP = { fast: 900, balanced: 1400, full: 2400 };
 
 function fitView() {
   vw.fit = true; vw.ox = 0; vw.oy = 0;
@@ -1387,7 +1513,24 @@ function paint() {
   g.imageSmoothingQuality = 'high';
   g.drawImage(lastComposed, x, y, dw, dh);
   drawOverlay(g, x, y, dw, dh);
+  if (abHold) drawBadge(g, 'ORIGINAL — correction off', 'rgba(251,191,36,.92)', '#231a05');
+  else if (pickMode) drawBadge(g, 'Click a point to place it on the screen plane · Esc cancels', 'rgba(124,156,255,.92)', '#0d1430');
   $('zoomLabel').textContent = vw.fit ? 'fit ' + Math.round(vw.zoom * 100) + '%' : Math.round(vw.zoom * 100) + '%';
+}
+
+function drawBadge(g, text, bg, fg) {
+  g.save();
+  g.font = '600 12px ' + 'system-ui,sans-serif';
+  const pad = 8, tw = g.measureText(text).width;
+  g.fillStyle = bg;
+  g.beginPath();
+  if (g.roundRect) g.roundRect(12, 12, tw + pad * 2, 26, 7);
+  else g.rect(12, 12, tw + pad * 2, 26);
+  g.fill();
+  g.fillStyle = fg;
+  g.textBaseline = 'middle';
+  g.fillText(text, 12 + pad, 25.5);
+  g.restore();
 }
 
 function drawOverlay(g, x, y, w, h) {
@@ -1457,6 +1600,7 @@ function setView(v) {
 
 function onParamChanged(id, fast) {
   if (id === 'wiggleSpeed' && wiggleTimer) setView('wiggle');
+  if (!fast) commitHistory();
   requestRender(fast);
 }
 
@@ -1789,6 +1933,503 @@ async function autoAlign() {
   }
 }
 
+/* --------------------- 5b. depth measurement tools ---------------------
+   The auto-aligner returns ONE horizontal number — the disparity of whatever
+   dominates the frame. Real scenes have a disparity *distribution*, and that
+   distribution is what decides whether the result is comfortable. These tools
+   measure it: local patch correlation between the two rendered eyes, either
+   at a clicked point or across a grid.
+   ---------------------------------------------------------------------- */
+
+let pickMode = false;
+let lastDepthScan = null;
+
+const DR = { A: newBuf(), B: newBuf() };
+
+/** Rasterises both eyes exactly as currently composited (correction, depth,
+ *  swap and crop all applied) and reduces them to luminance planes. */
+function disparityRaster() {
+  const crop = cropRect();
+  const s = Math.min(1, 1000 / Math.max(crop.w, crop.h));
+  const w = Math.max(8, Math.round(crop.w * s));
+  const h = Math.max(8, Math.round(crop.h * s));
+  const entries = eyeEntries();
+  drawEye(DR.A, entries[0], crop, s, w, h, '#000');
+  drawEye(DR.B, entries[1], crop, s, w, h, '#000');
+  const da = DR.A.x.getImageData(0, 0, w, h).data;
+  const db = DR.B.x.getImageData(0, 0, w, h).data;
+  const la = new Float32Array(w * h), lb = new Float32Array(w * h);
+  for (let i = 0, p = 0; i < la.length; i++, p += 4) {
+    la[i] = 0.299 * da[p] + 0.587 * da[p + 1] + 0.114 * da[p + 2];
+    lb[i] = 0.299 * db[p] + 0.587 * db[p + 1] + 0.114 * db[p + 2];
+  }
+  return { w, h, s, la, lb, crop };
+}
+
+/** Horizontal ZNCC patch search at one raster point. Returns the disparity
+ *  d = x_mov − x_ref in raster pixels (parabola-refined), or null. */
+function patchDisparity(la, lb, w, h, px, py, half, range) {
+  if (px < half + range + 1 || px >= w - half - range - 1 || py < half + 1 || py >= h - half - 1) return null;
+
+  let sa = 0, saa = 0, np = 0;
+  for (let dy = -half; dy <= half; dy++) {
+    const row = (py + dy) * w + px;
+    for (let dx = -half; dx <= half; dx++) { const v = la[row + dx]; sa += v; saa += v * v; np++; }
+  }
+  const varA = saa - sa * sa / np;
+  if (varA < np * 4) return null;   // patch too flat to localise
+
+  const scores = new Float32Array(2 * range + 1);
+  let best = -2, bestOff = 0;
+  for (let off = -range; off <= range; off++) {
+    let sb = 0, sbb = 0, sab = 0;
+    for (let dy = -half; dy <= half; dy++) {
+      const ra = (py + dy) * w + px;
+      const rb = ra + off;
+      for (let dx = -half; dx <= half; dx++) {
+        const va = la[ra + dx], vb = lb[rb + dx];
+        sb += vb; sbb += vb * vb; sab += va * vb;
+      }
+    }
+    const varB = sbb - sb * sb / np;
+    const cov = sab - sa * sb / np;
+    const sc = varB > 1e-6 ? cov / Math.sqrt(varA * varB) : -2;
+    scores[off + range] = sc;
+    if (sc > best) { best = sc; bestOff = off; }
+  }
+  if (best < 0.4) return null;
+  let d = bestOff;
+  const i = bestOff + range;
+  if (i > 0 && i < 2 * range) {
+    const y0 = scores[i - 1], y1 = scores[i], y2 = scores[i + 1];
+    const den = y0 - 2 * y1 + y2;
+    if (Math.abs(den) > 1e-9) d += clamp(0.5 * (y0 - y2) / den, -1, 1);
+  }
+  return { d, score: best };
+}
+
+/** Consistency-checked disparity: match A→B, then B→A from the matched
+ *  position, and demand they agree. Kills the two classic failure modes —
+ *  aliasing on periodic texture (text strokes, fences) and half-occluded
+ *  points at depth edges. */
+function patchDisparityLR(R, px, py, half, range) {
+  const fwd = patchDisparity(R.la, R.lb, R.w, R.h, px, py, half, range);
+  if (!fwd) return null;
+  const rev = patchDisparity(R.lb, R.la, R.w, R.h, px + Math.round(fwd.d), py, half, range);
+  if (!rev || Math.abs(fwd.d + rev.d) > 2) return null;
+  return fwd;
+}
+
+/** Disparity in *base pixels* at a base-frame coordinate, or null. */
+function measureDisparityAt(baseX, baseY) {
+  if (!bothLoaded()) return null;
+  const R = disparityRaster();
+  const px = Math.round((baseX - R.crop.x) * R.s);
+  const py = Math.round((baseY - R.crop.y) * R.s);
+  const range = Math.max(8, Math.round(R.w * 0.08));
+  const r = patchDisparityLR(R, px, py, 8, range);
+  if (!r) return null;
+  return { dPx: r.d / R.s, score: r.score };
+}
+
+/** Moving the depth slider shifts the SECOND rendered entry; with eyes
+ *  swapped that entry is the left source, so the slope of disparity with
+ *  respect to depth flips sign. */
+function depthSlope() { return $('swapEyes').checked ? -1 : 1; }
+
+/** Change depth so a measured disparity of `dPx` becomes zero. */
+function depthDeltaFor(dPx) { return (-dPx / depthSlope()) / base.w * 100; }
+
+async function analyzeDepth() {
+  if (!bothLoaded()) return null;
+  const btn = $('btnDepthScan');
+  btn.disabled = true;
+  setStatus('Measuring parallax…');
+  await nextFrame();
+  try {
+    const R = disparityRaster();
+    const range = Math.max(8, Math.round(R.w * 0.08));
+    const half = 6;
+    const cols = 26, rows = Math.max(6, Math.round(cols * R.h / R.w));
+    const ds = [];
+    for (let gy = 1; gy < rows; gy++) {
+      for (let gx = 1; gx < cols; gx++) {
+        const r = patchDisparityLR(R, Math.round(gx * R.w / cols), Math.round(gy * R.h / rows), half, range);
+        if (r) ds.push(r.d / R.s);
+      }
+      if ((gy & 3) === 0) await maybeYield();
+    }
+    if (ds.length < 12) {
+      lastDepthScan = null;
+      $('depthPlaceRow').style.display = 'none';
+      const rep = $('depthReport');
+      rep.classList.add('on');
+      rep.innerHTML = 'Not enough textured points to measure (' + ds.length + ' samples). Align first, or the images may not overlap.';
+      setStatus('Depth scan found too little texture', 'warn');
+      return null;
+    }
+    ds.sort((a, b) => a - b);
+    const q = f => ds[clamp(Math.round(f * (ds.length - 1)), 0, ds.length - 1)];
+    const near = q(0.05), median = q(0.5), far = q(0.95);
+    lastDepthScan = { near, median, far, n: ds.length };
+    renderDepthReport();
+    $('depthPlaceRow').style.display = '';
+    setStatus('Depth range measured', 'ok');
+    return lastDepthScan;
+  } finally {
+    btn.disabled = !bothLoaded();
+  }
+}
+
+function renderDepthReport() {
+  const rep = $('depthReport');
+  if (!lastDepthScan) { rep.classList.remove('on'); return; }
+  const { near, median, far, n } = lastDepthScan;
+  const pct = v => (v / base.w * 100);
+  const fmt = v => (v >= 0 ? '+' : '') + v.toFixed(1) + ' px (' + (pct(v) >= 0 ? '+' : '') + pct(v).toFixed(2) + '%)';
+  const nearP = pct(near), farP = pct(far), span = farP - nearP;
+  let verdict, cls;
+  if (farP > 2.5) { verdict = 'Background separation is excessive — viewers must diverge their eyes. Reduce depth or bring the screen plane back.'; cls = 'err'; }
+  else if (nearP < -1.5) { verdict = 'Strong pop-out — fine for a centred subject, but anything touching the frame edge will violate the stereo window.'; cls = 'warn'; }
+  else if (span > 3.5) { verdict = 'Very deep scene — consider easing the depth slider toward zero.'; cls = 'warn'; }
+  else { verdict = 'Comfortable range.'; cls = 'ok'; }
+  rep.classList.add('on');
+  rep.innerHTML =
+    '<b>nearest</b> ' + fmt(near) + '  ·  <b>median</b> ' + fmt(median) + '  ·  <b>farthest</b> ' + fmt(far) +
+    '\n' + n + ' measured points · negative = pops out, positive = behind screen' +
+    '\n<span class="' + cls + '">' + verdict + '</span>';
+}
+
+async function pickDepthAt(baseX, baseY) {
+  const m = measureDisparityAt(baseX, baseY);
+  if (!m) {
+    showToast('No measurable texture at that point — try a detailed area.', 'warn');
+    return null;
+  }
+  setParam('depth', S.depth + depthDeltaFor(m.dPx));
+  showToast('Screen plane set: that point was ' + (m.dPx >= 0 ? '+' : '') + m.dPx.toFixed(1) +
+    ' px of parallax, now zero.', 'ok');
+  lastDepthScan = null;
+  renderDepthReport();
+  $('depthPlaceRow').style.display = 'none';
+  return m;
+}
+
+/* --------------------------- 5c. demo scene -----------------------------
+   A layered landscape generated in-browser. Each layer is drawn at a
+   different horizontal offset in the right eye (real parallax: near objects
+   shift more), then the whole right frame is warped by a deliberate
+   vertical + rotational + scale error — the exact defect this app corrects.
+   ---------------------------------------------------------------------- */
+
+const DEMO_TRUTH = { ty: 10, rot: 1.25, scale: 1.012, w: 1280, h: 832 };
+
+function demoRng(seed) {
+  let s = seed;
+  return () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; };
+}
+
+function drawDemoScene(ctx, W, H, shiftFor) {
+  // shiftFor(parallaxPx) → horizontal offset for a layer at that nearness
+  const sky = ctx.createLinearGradient(0, 0, 0, H * 0.72);
+  sky.addColorStop(0, '#274a7a'); sky.addColorStop(0.55, '#5a7fae'); sky.addColorStop(1, '#c9a97a');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, H * 0.72);
+
+  // sun (infinitely far — no parallax)
+  const sun = ctx.createRadialGradient(W * 0.71, H * 0.24, 6, W * 0.71, H * 0.24, 90);
+  sun.addColorStop(0, 'rgba(255,244,214,1)'); sun.addColorStop(0.25, 'rgba(255,226,160,.85)'); sun.addColorStop(1, 'rgba(255,226,160,0)');
+  ctx.fillStyle = sun;
+  ctx.fillRect(W * 0.71 - 95, H * 0.24 - 95, 190, 190);
+
+  // clouds
+  let rnd = demoRng(101);
+  ctx.save();
+  ctx.translate(shiftFor(2.5), 0);
+  for (let i = 0; i < 7; i++) {
+    const cx = rnd() * W, cy = H * (0.08 + rnd() * 0.22), sc = 0.6 + rnd() * 1.1;
+    ctx.fillStyle = 'rgba(240,244,250,' + (0.5 + rnd() * 0.3) + ')';
+    for (let k = 0; k < 5; k++) {
+      ctx.beginPath();
+      ctx.ellipse(cx + (k - 2) * 26 * sc, cy + (rnd() - 0.5) * 10 * sc, (26 + rnd() * 18) * sc, (11 + rnd() * 7) * sc, 0, 0, 7);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+
+  const ridge = (baseY, amp, seed, color, shift) => {
+    rnd = demoRng(seed);
+    const ph1 = rnd() * 7, ph2 = rnd() * 7, f1 = 2 + rnd() * 2, f2 = 5 + rnd() * 4;
+    ctx.save();
+    ctx.translate(shift, 0);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(-80, H);
+    for (let x = -80; x <= W + 80; x += 8) {
+      const t = x / W;
+      const y = baseY - amp * (0.55 + 0.3 * Math.sin(t * f1 * Math.PI + ph1) + 0.15 * Math.sin(t * f2 * Math.PI + ph2));
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(W + 80, H);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  };
+  ridge(H * 0.66, H * 0.30, 7, '#5e6a8c', shiftFor(4));
+  ridge(H * 0.70, H * 0.22, 13, '#48557a', shiftFor(7));
+  ridge(H * 0.76, H * 0.15, 29, '#37436a', shiftFor(11));
+
+  // ground
+  const gnd = ctx.createLinearGradient(0, H * 0.62, 0, H);
+  gnd.addColorStop(0, '#3d5c3a'); gnd.addColorStop(1, '#243a24');
+  ctx.fillStyle = gnd;
+  ctx.fillRect(0, H * 0.68, W, H * 0.32);
+
+  // mid-ground pines
+  rnd = demoRng(53);
+  ctx.save();
+  ctx.translate(shiftFor(16), 0);
+  for (let i = 0; i < 22; i++) {
+    const x = rnd() * (W + 120) - 60, y = H * (0.70 + rnd() * 0.08), s = 0.5 + rnd() * 0.8;
+    ctx.fillStyle = 'rgba(24,42,28,' + (0.75 + rnd() * 0.25) + ')';
+    for (let tier = 0; tier < 3; tier++) {
+      const ty = y - (34 + tier * 22) * s, hw = (26 - tier * 6) * s;
+      ctx.beginPath();
+      ctx.moveTo(x - hw, ty + 24 * s); ctx.lineTo(x, ty); ctx.lineTo(x + hw, ty + 24 * s);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle = '#2b1e12';
+    ctx.fillRect(x - 3 * s, y - 12 * s, 6 * s, 14 * s);
+  }
+  ctx.restore();
+
+  // ground speckle texture (near field, strong parallax)
+  rnd = demoRng(91);
+  ctx.save();
+  ctx.translate(shiftFor(22), 0);
+  for (let i = 0; i < 500; i++) {
+    const y = H * (0.72 + Math.pow(rnd(), 1.6) * 0.27);
+    const near = (y - H * 0.72) / (H * 0.28);
+    const x = rnd() * (W + 200) - 100;
+    ctx.fillStyle = 'hsla(' + (80 + rnd() * 50 | 0) + ',' + (24 + rnd() * 30 | 0) + '%,' + (18 + rnd() * 30 | 0) + '%,' + (0.5 + rnd() * 0.5) + ')';
+    const s = 1.5 + near * 6 * rnd();
+    ctx.fillRect(x, y, s * (1 + rnd()), s * 0.6);
+  }
+  ctx.restore();
+
+  // boulders
+  rnd = demoRng(37);
+  ctx.save();
+  ctx.translate(shiftFor(26), 0);
+  for (let i = 0; i < 7; i++) {
+    const x = rnd() * W, y = H * (0.82 + rnd() * 0.13), s = 12 + rnd() * 26;
+    const g = ctx.createRadialGradient(x - s * 0.3, y - s * 0.4, s * 0.2, x, y, s * 1.2);
+    g.addColorStop(0, '#9aa0ac'); g.addColorStop(1, '#4c5260');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(x, y, s * (1 + rnd() * 0.4), s * 0.72, (rnd() - 0.5) * 0.5, 0, 7);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // fence posts, nearest full-width layer
+  rnd = demoRng(67);
+  ctx.save();
+  ctx.translate(shiftFor(30), 0);
+  for (let i = 0; i < 9; i++) {
+    const x = (i + 0.4) * W / 8 + (rnd() - 0.5) * 18, y = H * 0.955, hgt = H * 0.13;
+    ctx.fillStyle = '#3a2c1c';
+    ctx.fillRect(x - 5, y - hgt, 10, hgt);
+    ctx.fillStyle = '#553f27';
+    ctx.fillRect(x - 5, y - hgt, 4, hgt);
+  }
+  ctx.strokeStyle = 'rgba(70,54,34,.9)';
+  ctx.lineWidth = 4;
+  for (const fy of [0.865, 0.905]) {
+    ctx.beginPath();
+    ctx.moveTo(-60, H * fy);
+    ctx.lineTo(W + 60, H * fy + 6);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // the signpost — nearest object of all, and the obvious pick target
+  ctx.save();
+  ctx.translate(shiftFor(34), 0);
+  const sx = W * 0.30, sy = H * 0.60;
+  ctx.fillStyle = '#4a3820';
+  ctx.fillRect(sx - 7, sy, 14, H * 0.36);
+  const bw = 210, bh = 64;
+  ctx.fillStyle = '#6d5232';
+  ctx.fillRect(sx - bw / 2, sy - bh, bw, bh);
+  ctx.strokeStyle = '#2e2312'; ctx.lineWidth = 5;
+  ctx.strokeRect(sx - bw / 2, sy - bh, bw, bh);
+  ctx.fillStyle = '#f3e6c8';
+  ctx.font = '700 34px system-ui,sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('3D VALLEY', sx, sy - bh / 2 + 2);
+  ctx.restore();
+}
+
+function canvasToPngFile(canvas, name) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(b => b ? resolve(new File([b], name, { type: 'image/png' })) : reject(new Error('toBlob failed')), 'image/png');
+  });
+}
+
+async function loadDemoPair() {
+  const { w: W, h: H, ty, rot, scale } = DEMO_TRUTH;
+  const M = 70;                     // margin so the error warp never shows blank corners
+  const SW = W + 2 * M, SH = H + 2 * M;
+  setStatus('Generating demo scene…');
+  await nextFrame();
+  try {
+    const files = [];
+    for (const eye of [0, 1]) {
+      const big = document.createElement('canvas');
+      big.width = SW; big.height = SH;
+      // right eye: each layer moves LEFT in proportion to its nearness
+      drawDemoScene(big.getContext('2d'), SW, SH, p => (eye ? -p : 0));
+      const out = document.createElement('canvas');
+      out.width = W; out.height = H;
+      const ox = out.getContext('2d');
+      ox.imageSmoothingEnabled = true; ox.imageSmoothingQuality = 'high';
+      if (eye) {
+        const r = rot * DEG, cos = Math.cos(r) * scale, sin = Math.sin(r) * scale;
+        const cx2 = W / 2, cy2 = H / 2;
+        ox.setTransform(cos, sin, -sin, cos,
+          cx2 - (cos * cx2 - sin * cy2), cy2 - (sin * cx2 + cos * cy2) + ty);
+      }
+      ox.drawImage(big, -M, -M);
+      files.push(await canvasToPngFile(out, eye ? 'demo-right.png' : 'demo-left.png'));
+    }
+    await loadInto('L', files[0]);
+    await loadInto('R', files[1]);
+    showToast('Demo pair loaded — the right eye carries +' + ty + ' px vertical, ' + rot + '° roll and ' +
+      ((scale - 1) * 100).toFixed(1) + '% scale error. Hit Auto-align, and hold \\ to compare.', '', 6500);
+  } catch (err) {
+    setStatus('Demo generation failed: ' + err.message, 'err');
+  }
+}
+
+/* ------------------- 5d. history, persistence, presets ------------------ */
+
+const STORE_KEY = 'anaglyphStudio.v2';
+let hist = [], hi = -1, histTimer = null, applyingSnap = false;
+
+function collectDom() {
+  const o = {};
+  for (const el of document.querySelectorAll('#panel select, #panel input[type=checkbox], #panel input[type=color]')) {
+    o[el.id] = el.type === 'checkbox' ? el.checked : el.value;
+  }
+  return o;
+}
+
+const makeSnapStr = () => JSON.stringify({ S: Object.assign({}, S), dom: collectDom() });
+
+function applySnapshot(snap) {
+  applyingSnap = true;
+  try {
+    if (snap.S) {
+      for (const k of Object.keys(SPEC_BY_ID)) {
+        if (typeof snap.S[k] === 'number' && Number.isFinite(snap.S[k])) {
+          S[k] = clamp(snap.S[k], SPEC_BY_ID[k].min, SPEC_BY_ID[k].max);
+        }
+      }
+    }
+    if (snap.dom) {
+      for (const id of Object.keys(snap.dom)) {
+        const el = $(id);
+        if (!el || el.closest('#panel') === null) continue;
+        if (el.type === 'checkbox') el.checked = !!snap.dom[id];
+        else if (typeof snap.dom[id] === 'string') el.value = snap.dom[id];
+      }
+    }
+    syncColorLabels();
+    syncMethodHint();
+    cropCache = { key: '', rect: null };
+    PB.key = '';
+    refreshAllControls();
+    if (currentView === 'wiggle') setView('wiggle');
+    requestRender();
+  } finally {
+    applyingSnap = false;
+  }
+}
+
+function persistSettings(str) {
+  try { localStorage.setItem(STORE_KEY, str); } catch (e) {}
+}
+
+function restoreSettings() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (!raw) return false;
+    applySnapshot(JSON.parse(raw));
+    return true;
+  } catch (e) { return false; }
+}
+
+function clearSettings() {
+  try { localStorage.removeItem(STORE_KEY); } catch (e) {}
+}
+
+function updateHistButtons() {
+  $('btnUndo').disabled = hi <= 0;
+  $('btnRedo').disabled = hi >= hist.length - 1;
+}
+
+function flushHistory() {
+  clearTimeout(histTimer);
+  histTimer = null;
+  const s = makeSnapStr();
+  if (hist[hi] === s) { persistSettings(s); return; }
+  hist.length = hi + 1;
+  hist.push(s);
+  if (hist.length > 100) hist.shift();
+  hi = hist.length - 1;
+  updateHistButtons();
+  persistSettings(s);
+}
+
+function commitHistory() {
+  if (applyingSnap) return;
+  clearTimeout(histTimer);
+  histTimer = setTimeout(flushHistory, 350);
+}
+
+function histStep(dir) {
+  flushHistory();
+  const target = hi + dir;
+  if (target < 0 || target >= hist.length) return;
+  hi = target;
+  applySnapshot(JSON.parse(hist[hi]));
+  persistSettings(hist[hi]);
+  updateHistButtons();
+}
+
+function saveSettingsFile() {
+  const payload = {
+    app: 'anaglyph-studio', version: 2, saved: new Date().toISOString(),
+    S: Object.assign({}, S), dom: collectDom(),
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  download(blob, 'anaglyph-settings-' + stamp() + '.json');
+  showToast('Settings saved as JSON.', 'ok');
+}
+
+async function loadSettingsFile(file) {
+  try {
+    const parsed = JSON.parse(await file.text());
+    if (parsed.app !== 'anaglyph-studio' || !parsed.S) throw new Error('not an Anaglyph Studio settings file');
+    applySnapshot(parsed);
+    flushHistory();
+    showToast('Settings loaded from ' + file.name + '.', 'ok');
+  } catch (err) {
+    showToast('Could not load settings: ' + err.message, 'err');
+  }
+}
+
 /* ------------------------------ 6. export ------------------------------ */
 
 function stamp() {
@@ -1828,6 +2469,29 @@ async function exportImage() {
       ' (' + (blob.size / 1048576).toFixed(2) + ' MB)', 'ok');
   } catch (err) {
     setStatus('Export failed: ' + err.message, 'err');
+  }
+}
+
+async function copyToClipboard() {
+  if (!bothLoaded()) return;
+  if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+    showToast('This browser does not expose clipboard image writing.', 'err');
+    return;
+  }
+  setStatus('Rendering for clipboard…');
+  await nextFrame();
+  try {
+    const bufs = exportBufs();
+    const res = renderContent(bufs, S.outScale / 100, $('exportWhat').value, { force: true });
+    const canvas = withFrame(res.canvas, bufs.D);
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    if (!blob) throw new Error('PNG encode failed');
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+    showToast('Copied ' + canvas.width + '×' + canvas.height + ' PNG to the clipboard.', 'ok');
+    setStatus('Copied to clipboard', 'ok');
+  } catch (err) {
+    showToast('Copy failed: ' + (err && err.message ? err.message : err), 'err');
+    setStatus('Clipboard copy failed', 'err');
   }
 }
 
@@ -2131,6 +2795,7 @@ function resetAlignment() {
   autoResult = null;
   $('btnDepthAuto').disabled = true;
   setLine('autoStatus', '');
+  commitHistory();
 }
 
 let domDefaults = null;
@@ -2151,6 +2816,9 @@ function resetAll() {
     }
   }
   autoResult = null;
+  lastDepthScan = null;
+  renderDepthReport();
+  $('depthPlaceRow').style.display = 'none';
   $('btnDepthAuto').disabled = true;
   setLine('autoStatus', ''); setLine('gifStatus', '');
   syncColorLabels(); syncMethodHint();
@@ -2159,6 +2827,8 @@ function resetAll() {
   refreshAllControls();
   setView('anaglyph');
   fitView();
+  clearSettings();
+  flushHistory();
   setStatus('Settings reset');
 }
 
@@ -2181,12 +2851,13 @@ function wireStage() {
   $('btnZoomIn').addEventListener('click', () => zoomBy(1.25));
   $('btnZoomOut').addEventListener('click', () => zoomBy(1 / 1.25));
 
-  let dragging = false, lastX = 0, lastY = 0;
+  let dragging = false, lastX = 0, lastY = 0, downX = 0, downY = 0, pickArmed = false;
   cv.addEventListener('pointerdown', (e) => {
     if (!lastComposed) return;
-    dragging = true; lastX = e.clientX; lastY = e.clientY;
+    dragging = true; lastX = downX = e.clientX; lastY = downY = e.clientY;
+    pickArmed = pickMode || e.altKey;
     cv.setPointerCapture(e.pointerId);
-    cv.style.cursor = 'grabbing';
+    if (!pickArmed) cv.style.cursor = 'grabbing';
   });
   cv.addEventListener('pointermove', (e) => {
     if (!dragging) return;
@@ -2198,7 +2869,12 @@ function wireStage() {
     if (!dragging) return;
     dragging = false;
     try { cv.releasePointerCapture(e.pointerId); } catch (err) {}
-    cv.style.cursor = '';
+    cv.style.cursor = pickMode ? 'crosshair' : '';
+    if (pickArmed && Math.hypot(e.clientX - downX, e.clientY - downY) < 5) {
+      pickArmed = false;
+      handleCanvasPick(e);
+    }
+    pickArmed = false;
   };
   cv.addEventListener('pointerup', endDrag);
   cv.addEventListener('pointercancel', endDrag);
@@ -2237,11 +2913,55 @@ function zoomBy(f) {
   paint();
 }
 
+function setPickMode(on) {
+  pickMode = !!on && bothLoaded();
+  $('btnPick').classList.toggle('held', pickMode);
+  $('view').style.cursor = pickMode ? 'crosshair' : '';
+  paint();
+}
+
+/** View-canvas click → base-frame coordinate → screen-plane at that point. */
+function handleCanvasPick(e) {
+  if (!lastComposed || !bothLoaded()) return;
+  if (currentView === 'sbs') { showToast('Switch out of side-by-side to pick a point.', 'warn'); return; }
+  const rect = $('view').getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  const cs = cssSize();
+  if (vw.fit) vw.zoom = computeFitZoom();
+  const ds = vw.zoom / previewScale;
+  const dw = lastComposed.width * ds, dh = lastComposed.height * ds;
+  const x0 = (cs.w - dw) / 2 + vw.ox, y0 = (cs.h - dh) / 2 + vw.oy;
+  const fb = (lastComposed.width - PB.C.c.width) / 2;   // preview-space frame border
+  const px = (mx - x0) / ds - fb;
+  const py = (my - y0) / ds - fb;
+  if (px < 0 || py < 0 || px > PB.C.c.width || py > PB.C.c.height) return;
+  const crop = cropRect();
+  const baseX = px / previewScale + crop.x;
+  const baseY = py / previewScale + crop.y;
+  setPickMode(false);
+  pickDepthAt(baseX, baseY);
+}
+
+function setAbHold(on) {
+  on = !!on && bothLoaded();
+  if (abHold === on) return;
+  abHold = on;
+  $('btnAB').classList.toggle('held', on);
+  requestRender();
+}
+
 function wireKeyboard() {
   window.addEventListener('keydown', (e) => {
     const t = e.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return;
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'z' || e.key === 'Z' || e.key === 'y' || e.key === 'Y')) {
+      e.preventDefault();
+      histStep(e.key === 'y' || e.key === 'Y' || e.shiftKey ? 1 : -1);
+      return;
+    }
     if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === '\\') { if (!e.repeat) setAbHold(true); e.preventDefault(); return; }
+    if (e.key === 'Escape') { if (pickMode) { setPickMode(false); e.preventDefault(); } return; }
     const fine = e.shiftKey ? 0.1 : 1;
     let handled = true;
     switch (e.key) {
@@ -2261,6 +2981,10 @@ function wireKeyboard() {
     }
     if (handled) e.preventDefault();
   });
+  window.addEventListener('keyup', (e) => {
+    if (e.key === '\\') setAbHold(false);
+  });
+  window.addEventListener('blur', () => setAbHold(false));
 }
 
 function wirePanel() {
@@ -2276,29 +3000,71 @@ function wirePanel() {
 
   $('btnDepthZero').addEventListener('click', () => setParam('depth', 0));
   $('btnDepthAuto').addEventListener('click', () => { if (autoResult) setParam('depth', autoResult.tx); });
+  $('btnDepthScan').addEventListener('click', analyzeDepth);
+  $('btnPick').addEventListener('click', () => setPickMode(!pickMode));
+  $('btnDepthNear').addEventListener('click', () => {
+    if (lastDepthScan) { setParam('depth', S.depth + depthDeltaFor(lastDepthScan.near)); analyzeDepth(); }
+  });
+  $('btnDepthMedian').addEventListener('click', () => {
+    if (lastDepthScan) { setParam('depth', S.depth + depthDeltaFor(lastDepthScan.median)); analyzeDepth(); }
+  });
+
+  $('btnDemo').addEventListener('click', loadDemoPair);
+  $('btnDemoEmpty').addEventListener('click', loadDemoPair);
 
   $('btnExport').addEventListener('click', exportImage);
   $('btnExport2').addEventListener('click', exportImage);
   $('btnGif').addEventListener('click', exportGif);
   $('btnGif2').addEventListener('click', exportGif);
+  $('btnCopy').addEventListener('click', copyToClipboard);
 
-  for (const id of ['method', 'linearLight', 'matchExposure', 'alignMode', 'swapEyes', 'cropOverlap',
+  const ab = $('btnAB');
+  ab.addEventListener('pointerdown', (e) => { e.preventDefault(); setAbHold(true); });
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) ab.addEventListener(ev, () => setAbHold(false));
+
+  $('btnUndo').addEventListener('click', () => histStep(-1));
+  $('btnRedo').addEventListener('click', () => histStep(1));
+  $('btnSaveSet').addEventListener('click', saveSettingsFile);
+  $('btnLoadSet').addEventListener('click', () => $('fileSet').click());
+  $('fileSet').addEventListener('change', () => {
+    const f = $('fileSet').files && $('fileSet').files[0];
+    if (f) loadSettingsFile(f);
+    $('fileSet').value = '';
+  });
+
+  const full = $('btnFull');
+  if (document.fullscreenEnabled) {
+    full.addEventListener('click', () => {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else $('stage').requestFullscreen().catch(err => showToast('Fullscreen refused: ' + err.message, 'err'));
+    });
+    document.addEventListener('fullscreenchange', () => {
+      full.classList.toggle('held', !!document.fullscreenElement);
+      paint();
+    });
+  } else {
+    full.style.display = 'none';
+  }
+
+  for (const id of ['method', 'linearLight', 'exposureMatch', 'alignMode', 'swapEyes', 'cropOverlap',
     'sbsOrder', 'quality', 'overlay', 'bgColor', 'frameColor', 'gifDither', 'gifLoop', 'exportWhat']) {
     const el = $(id);
     el.addEventListener('input', () => {
       if (id === 'method') syncMethodHint();
       if (id === 'bgColor' || id === 'frameColor') syncColorLabels();
-      if (id === 'gifDither' || id === 'gifLoop') return;
+      if (id === 'gifDither' || id === 'gifLoop') { commitHistory(); return; }
       PB.key = '';
+      commitHistory();
       requestRender();
     });
-    el.addEventListener('change', () => { PB.key = ''; requestRender(); });
+    el.addEventListener('change', () => { PB.key = ''; commitHistory(); requestRender(); });
   }
 }
 
 function init() {
   buildControls();
   captureDomDefaults();
+  const restored = restoreSettings();
   wirePanel();
   wireStage();
   wireKeyboard();
@@ -2308,21 +3074,32 @@ function init() {
   setView('anaglyph');
   refreshAllControls();
   paint();
-  setStatus('Load a left and a right eye image to begin');
+  hist = [makeSnapStr()];
+  hi = 0;
+  updateHistButtons();
+  setStatus(restored ? 'Settings restored from your last visit' : 'Load a left and a right eye image to begin');
 }
 
 /* A small, deliberately boring hook so the app can be driven from a test
    harness or the console without reaching into private state. */
 window.__anaglyph = {
-  S, DEFAULTS,
+  S, DEFAULTS, DEMO_TRUTH,
   get base() { return { w: base.w, h: base.h }; },
   get autoResult() { return autoResult; },
   get busy() { return autoBusy || gifBusy; },
   get seq() { return loadSeq; },
   get view() { return currentView; },
+  get ab() { return abHold; },
+  get pick() { return pickMode; },
+  get lastDepthScan() { return lastDepthScan; },
+  get histLen() { return hist.length; },
+  get histIndex() { return hi; },
   setParam, setView, autoAlign, exportImage, exportGif, requestRender,
   cropRect, outputSize, eyeParams, paramMatrix, matMul, matInv,
   lzwEncode, medianCut, assembleGif, largestRectangle,
+  loadDemoPair, analyzeDepth, measureDisparityAt, pickDepthAt,
+  histStep, flushHistory, makeSnapStr, applySnapshot, setAbHold, setPickMode,
+  histogramLuts, copyToClipboard,
   loaded() { return bothLoaded(); },
 };
 

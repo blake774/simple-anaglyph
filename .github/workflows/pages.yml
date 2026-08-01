@@ -1,0 +1,45 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a running deploy finish rather than cancelling it mid-publish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v5
+
+      # The app is a single self-contained file, so the "build" is a copy.
+      # Assembled explicitly to keep the test harness and git metadata out.
+      - name: Assemble site
+        run: |
+          mkdir -p _site/anaglyph-studio
+          cp index.html                   _site/index.html
+          cp anaglyph-studio/index.html   _site/anaglyph-studio/index.html
+          cp anaglyph-studio/README.md    _site/anaglyph-studio/README.md
+          touch _site/.nojekyll
+          ls -lR _site
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

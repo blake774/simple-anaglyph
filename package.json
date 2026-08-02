@@ -1,0 +1,14 @@
+{
+  "name": "simple-anaglyph",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Red/cyan 3D anaglyphs from a stereo pair, with automatic correction of vertical and rotational camera movement.",
+  "scripts": {
+    "start": "node serve.mjs",
+    "serve": "node serve.mjs",
+    "test": "node anaglyph-studio/test/test.js && node anaglyph-studio/test/robust.js && node anaglyph-studio/test/features.js"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}

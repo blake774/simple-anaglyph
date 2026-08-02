@@ -16,9 +16,9 @@ filesystem (`file://`) and offline. Your images never leave the machine.
 **Getting it open:** download this folder's `index.html` (GitHub's **Download
 raw file** button, ⤓ top-right of the file view) and double-click it. Viewing
 the file *on* GitHub shows you the source, and `raw.githubusercontent.com`
-serves it as `text/plain` — neither renders. To serve it instead, run
-`python3 -m http.server 8000` from the repository root and open
-<http://localhost:8000/>, or enable GitHub Pages; both are covered in the
+serves it as `text/plain` — neither renders. To serve it on localhost instead,
+run `node serve.mjs` or `python serve.py` from the repository root. Those, plus
+GitHub Pages and a troubleshooting table, are covered in the
 [repository README](../README.md#running-it).
 
 ---

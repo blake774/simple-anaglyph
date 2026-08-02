@@ -13,67 +13,90 @@ machine.
 
 ## Running it
 
-### The quickest way — no server at all
+### Option 1 — no server at all (most reliable)
 
-The app is one self-contained HTML file and runs straight off the filesystem.
+The app is one self-contained HTML file that runs straight off the filesystem.
 
-1. Download **[`anaglyph-studio/index.html`](anaglyph-studio/index.html)** —
-   on the GitHub page for that file, use the **Download raw file** button
-   (the ⤓ icon, top-right of the file view).
+1. Download **[`anaglyph-studio/index.html`](anaglyph-studio/index.html)** — on
+   the GitHub page for that file, click the **Download raw file** button (the ⤓
+   icon at the top-right of the file view).
 2. Double-click the downloaded file.
 
-That's it. It opens in your default browser and everything works offline,
-including the built-in demo scene.
+It opens in your browser and everything works, offline, including the built-in
+demo scene. **If localhost is giving you trouble, do this instead** — there is
+no functional difference.
 
-> **Why clicking the file on GitHub doesn't run it:** GitHub shows HTML files as
-> *source code*, and `raw.githubusercontent.com` serves them as `text/plain` so
-> the browser displays the markup instead of rendering it. Neither is a working
-> page — you need the file on disk, or a real web host (below).
+> **Why clicking the file on GitHub doesn't run it:** GitHub renders HTML files
+> as *source code*, and `raw.githubusercontent.com` serves them as `text/plain`,
+> so the browser prints the markup instead of running it. Neither URL is a live
+> page — you need the file on disk, or a real web server.
 
-### On localhost
+### Option 2 — localhost
 
-From a clone of the repo:
+From a clone of the repo, use whichever runtime you already have. Both scripts
+are dependency-free, pick a free port automatically if the default is taken,
+and open your browser for you.
 
 ```sh
 git clone https://github.com/blake774/simple-anaglyph.git
 cd simple-anaglyph
 
-# any one of these:
-python3 -m http.server 8000     # then open http://localhost:8000/
-npx serve .                     # prints the URL it picked
-php -S localhost:8000           # if you have PHP
+node serve.mjs        # Node    (or: npm start)
+python serve.py       # Python  (or: python3 serve.py, or: py -3 serve.py)
 ```
 
-Then browse to **<http://localhost:8000/>** — the root redirects to the app.
-The app itself lives at `/anaglyph-studio/`.
+Either prints the exact URL to open, e.g. `http://localhost:8000/anaglyph-studio/`.
 
-If you are on the feature branch rather than `main`:
+Pass a port if you want a specific one, and `--no-open` to skip launching a
+browser:
 
 ```sh
-git fetch origin
-git checkout claude/anaglyph-image-creator-w96lx4
+node serve.mjs 3000
+python serve.py 3000 --no-open
 ```
 
-### GitHub Pages
+A plain `python3 -m http.server 8000` from the repo root also works — open
+<http://localhost:8000/> and the root page redirects to the app.
 
-A workflow at [`.github/workflows/pages.yml`](.github/workflows/pages.yml)
-publishes the site on every push to `main`. To turn it on once:
+#### If localhost still doesn't work
+
+| Symptom | Cause and fix |
+| --- | --- |
+| `python3: command not found` | On Windows the command is usually `py -3 serve.py` or `python serve.py`. Or use `node serve.mjs`. |
+| Windows opens the Microsoft Store when you type `python` | The App Execution Alias is intercepting it. Use `py -3 serve.py`, or use `node serve.mjs`. |
+| `node: command not found` | Install Node, or use the Python script, or just use **Option 1**. |
+| Page won't load / "can't reach this site" | Confirm the terminal still shows *"Anaglyph Studio is running"* — if the command exited, the server is gone. The terminal must stay open. |
+| `Address already in use` / `EADDRINUSE` | Something else holds the port. The scripts here auto-advance to the next free port; with `-m http.server`, pass a different one: `python3 -m http.server 8123`. |
+| 404, or a directory listing instead of the app | You are serving the wrong folder. Run the command from the **repository root** (the folder containing `serve.mjs` and `anaglyph-studio/`), and browse to `/anaglyph-studio/`. |
+| Blank page | Make sure you are on `/anaglyph-studio/` (with the trailing slash), not `/anaglyph-studio` alone on some servers. |
+| Working in WSL, a VM, a container, or over SSH | `localhost` there is not your desktop's localhost. Use the second URL the scripts print (`http://<ip>:<port>/anaglyph-studio/`), forward the port, or use **Option 1**. |
+
+### Option 3 — GitHub Pages (a public URL, nothing to install)
+
+The workflow at [`.github/workflows/pages.yml`](.github/workflows/pages.yml)
+publishes the site on every push to `main`. Two one-time settings, both in the
+repository's **Settings** tab:
 
 1. **Settings → Pages → Build and deployment → Source: GitHub Actions.**
-2. Push to `main` (or run the workflow manually from the **Actions** tab →
-   *Deploy to GitHub Pages* → *Run workflow*).
+2. **Settings → General → Default branch → `main`.** The `github-pages`
+   deployment environment only permits deploys from the default branch, so this
+   step is required or the job will be blocked.
 
-The site then lives at:
+Then push to `main`, or run it by hand from the **Actions** tab → *Deploy to
+GitHub Pages* → *Run workflow*. The site lands at:
 
 ```
 https://blake774.github.io/simple-anaglyph/
 ```
 
-which redirects to `https://blake774.github.io/simple-anaglyph/anaglyph-studio/`.
+which redirects to `/anaglyph-studio/`.
 
-Pages only serves the repository's **default branch** by default — if the work
-is still on a feature branch, merge the pull request first, or temporarily add
-that branch to the workflow's `on.push.branches` list.
+---
+
+## Tests
+
+`npm test` runs all three suites (131 checks). They drive real Chromium and
+need Playwright installed (`npm i -D playwright`); the app itself needs nothing.
 
 ---
 
